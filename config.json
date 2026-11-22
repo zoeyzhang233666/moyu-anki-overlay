@@ -1,6 +1,7 @@
 {
   "opacity": 1.0,
   "auto_show": true,
+  "mathjax": true,
   "pos_x": null,
   "pos_y": null,
   "font_family": "PingFang SC",

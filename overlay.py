@@ -213,6 +213,7 @@ class MoyuOverlay(QWidget):
         self._rendered_expanded = False
         self._document = ""
         self._measure_serial = 0
+        self._math_retries = 0
         self._last_expanded = None
         self._visible_height = 50
         self._card_width = self._clamp_width(int(self.config.get("card_width", 330)))
@@ -440,7 +441,8 @@ class MoyuOverlay(QWidget):
             front, back, note = "<p>暂无到期卡片</p>", "", ""
         markup = document(front, back, note,
             font_family=str(self.config.get("font_family") or "PingFang SC"),
-            font_size=int(self.config.get("font_size", 13)))
+            font_size=int(self.config.get("font_size", 13)),
+            mathjax=bool(self.config.get("mathjax", True)))
         if markup != self._document:
             self._cancel_pending_click()
             self._document = markup
@@ -448,6 +450,7 @@ class MoyuOverlay(QWidget):
             self._rendered_expanded = False
             self._last_expanded = None
             self._measure_serial += 1
+            self._math_retries = 0
             base = QUrl(mw.serverURL()) if mw else QUrl()
             self.web.setHtml(markup, base)
         self._relayout()
@@ -484,9 +487,17 @@ class MoyuOverlay(QWidget):
         self.web.page().runJavaScript(script, lambda h: self._layout_ack(h, serial, expanded))
 
     def _layout_ack(self, height, serial: int, expanded: bool) -> None:
-        if serial == self._measure_serial and isinstance(height, (int, float)):
-            self._rendered_expanded = expanded
-            self._update_visible_region(height, serial)
+        if serial != self._measure_serial:
+            return
+        if height == -1:
+            # MathJax is still typesetting; retry the measurement shortly.
+            self._math_retries += 1
+            if self._math_retries < 60:
+                QTimer.singleShot(150, self._sync_expanded)
+            return
+        self._math_retries = 0
+        self._rendered_expanded = expanded
+        self._update_visible_region(height, serial)
 
     def _queue_measure(self) -> None:
         if hasattr(self, '_measure_timer'):

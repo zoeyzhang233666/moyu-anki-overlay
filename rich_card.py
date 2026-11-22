@@ -18,7 +18,7 @@ def _markup(raw: str) -> str:
     return _SOUND.sub('', _TYPE.sub('', raw))
 
 
-def document(front: str, back: str, note: str = '', *, font_family='PingFang SC', font_size=13) -> str:
+def document(front: str, back: str, note: str = '', *, font_family='PingFang SC', font_size=13, mathjax=False) -> str:
     family = html.escape(json.dumps(str(font_family), ensure_ascii=False), quote=False)
     size = max(11, min(24, int(font_size)))
     front, back, note = _markup(front), _markup(back), _markup(note)
@@ -28,8 +28,16 @@ def document(front: str, back: str, note: str = '', *, font_family='PingFang SC'
     if split:
         back = back[split.end():]
     fallback = f'<aside class="moyu-extra-note note"><div class="note-text">{note}</div></aside>' if note else ''
+    # MathJax assets are served by Anki's local server (same origin as the
+    # card page, whose base URL is mw.serverURL()). This mirrors reviewer.js.
+    mathjax_head = ''
+    if mathjax:
+        mathjax_head = '''
+<script>window.__moyuMathjax = true;</script>
+<script src="/_anki/js/mathjax.js"></script>
+<script src="/_anki/js/vendor/mathjax/tex-chtml-full.js"></script>'''
     return '''<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">''' + styles + f'''
+<meta name="viewport" content="width=device-width,initial-scale=1">''' + styles + mathjax_head + f'''
 <style>
 :root {{ --moyu-size:{size}px; --moyu-note:{size}px; }}
 *,*::before,*::after {{ user-select:none !important; -webkit-user-select:none !important;
@@ -48,8 +56,11 @@ body.moyu-expanded #moyu-back {{ display:flow-root; visibility:visible; pointer-
 #moyu-content .wrap, #moyu-content .card-box {{ width:100% !important; max-width:none !important;
     padding:0 !important; margin:0 !important; display:block !important;
     border:none !important; border-radius:0 !important; background:transparent !important; box-shadow:none !important; }}
-#moyu-front, #moyu-front * {{ font-size:var(--moyu-size) !important; line-height:1.5 !important;
+#moyu-front, #moyu-front *:not(mjx-container):not(mjx-container *):not(mjx-assistive-mml):not(mjx-assistive-mml *) {{ font-size:var(--moyu-size) !important; line-height:1.5 !important;
     text-align:left !important; font-weight:400; }}
+#moyu-content mjx-container {{ font-size:var(--moyu-size) !important; line-height:normal !important; }}
+#moyu-content mjx-container mjx-math {{ line-height:normal !important; }}
+#moyu-content mjx-assistive-mml {{ display:none !important; }}
 #moyu-front, #moyu-front .question {{ color:#000000 !important; }}
 #moyu-front .question, #moyu-front p {{ margin:0 !important; }}
 #moyu-front .note, #moyu-front #note, #moyu-front .notes {{ display:none !important; }}
@@ -135,11 +146,24 @@ body.moyu-expanded #moyu-back {{ display:flow-root; visibility:visible; pointer-
     window.moyuHeight = () => {{
         // Capsules use their natural height. Only the complete card scrolls
         // when it exceeds the fixed native surface's available screen space.
+        // -1 tells the host that MathJax is still typesetting; it retries.
+        if (window.__moyuMathjax && window.__moyuMathDone === undefined) return -1;
         return Math.ceil(document.getElementById('moyu-content').getBoundingClientRect().bottom);
     }};
     window.moyuSetExpanded = expanded => {{
         document.body.classList.toggle('moyu-expanded',expanded);
         return window.moyuHeight();
     }};
+    if (window.__moyuMathjax) {{
+        // Same contract as reviewer.js: wait for startup.promise, then
+        // typeset the visible card once. mjx layout then settles.
+        MathJax.startup.promise.then(function() {{
+            return MathJax.typesetPromise([document.getElementById('moyu-content')]);
+        }}).then(function() {{
+            window.__moyuMathDone = 1;
+        }}).catch(function() {{
+            window.__moyuMathDone = -1;
+        }});
+    }}
 }})();
 </script></body></html>'''

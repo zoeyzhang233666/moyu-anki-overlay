@@ -270,6 +270,7 @@ def _defaults() -> dict:
         "opacity": 1.0,
         "opaque_style_version": 1,
         "auto_show": True,
+        "mathjax": True,
         "pos_x": None,
         "pos_y": None,
         "card_width": 330,
@@ -467,10 +468,13 @@ class MoyuConfigDialog(QDialog):
         )
         self.auto_show = QCheckBox("启动后自动显示悬浮条")
         self.auto_show.setChecked(bool(self._conf.get("auto_show", True)))
+        self.mathjax = QCheckBox("渲染 LaTeX 公式（MathJax）")
+        self.mathjax.setChecked(bool(self._conf.get("mathjax", True)))
         appear.add_row(_row("不透明度", self.opacity))
         appear.add_row(_row("卡片宽度", self.max_width, "默认轻巧窄条，也可拖动左右边缘"))
         appear.add_row(_row("显示 / 隐藏", self.toggle_shortcut))
         appear.add_row(_check_row(self.auto_show))
+        appear.add_row(_check_row(self.mathjax))
         body.addWidget(appear)
         body.addSpacing(10)
 
@@ -587,6 +591,7 @@ class MoyuConfigDialog(QDialog):
         self.opacity.setValue(d["opacity"])
         self.max_width.setValue(d["card_width"])
         self.auto_show.setChecked(True)
+        self.mathjax.setChecked(True)
         self.toggle_shortcut.setKeySequence(QKeySequence(d["toggle_shortcut"]))
         self.font_family.setCurrentFont(QFont(d["font_family"]))
         self.font_size.setValue(d["font_size"])
@@ -618,6 +623,7 @@ class MoyuConfigDialog(QDialog):
         conf["opacity"] = float(self.opacity.value())
         conf["card_width"] = int(self.max_width.value())
         conf["auto_show"] = bool(self.auto_show.isChecked())
+        conf["mathjax"] = bool(self.mathjax.isChecked())
         conf["toggle_shortcut"] = self._seq_str(self.toggle_shortcut) or "Ctrl+Shift+M"
         conf["font_family"] = self.font_family.currentFont().family() or "PingFang SC"
         conf["font_size"] = int(self.font_size.value())
